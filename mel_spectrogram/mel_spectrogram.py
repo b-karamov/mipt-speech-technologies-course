@@ -211,6 +211,52 @@ def compute_mel_spectrogram_from_file(
     return compute_mel_spectrogram(audio, sample_rate, **kwargs)
 
 
+def synthesize_signal(spectrogram, window, hop_samples, signal_length, n_fft):
+    """Выполняем обратное rFFT и overlap-add с окном Ханна."""
+
+    n_frames = spectrogram.shape[0]
+    frame_len = window.size
+    total_len = hop_samples * (n_frames - 1) + frame_len
+    ola_signal = np.zeros(total_len)
+    window_accumulator = np.zeros(total_len)
+    window_square = window ** 2
+
+    for idx in range(n_frames):
+        time_frame = np.fft.irfft(spectrogram[idx], n=n_fft)[:frame_len]
+        time_frame *= window
+        offset = idx * hop_samples
+        ola_signal[offset:offset + frame_len] += time_frame
+        window_accumulator[offset:offset + frame_len] += window_square
+
+    valid = window_accumulator > 1e-10
+    ola_signal[valid] /= window_accumulator[valid]
+    return ola_signal[:signal_length]
+
+
+def show_mel(ax, mel_result, title):
+    """Рисуем mel-спектрограмму на заданных осях и подписываем её."""
+
+    times = mel_result.times
+    freqs = mel_result.mel_frequencies
+    if times.size == 0:
+        extent = [0, 0, freqs[0], freqs[-1]]
+    else:
+        extent = [0, times[-1], freqs[0], freqs[-1]]
+
+    im = ax.imshow(
+        mel_result.mel_spectrogram,
+        origin="lower",
+        aspect="auto",
+        extent=extent,
+    )
+    ax.set_title(title)
+    ax.set_xlabel("Время, с")
+    ax.set_ylabel("Частота, Гц (mel)")
+    fig = ax.figure
+    if fig is not None:
+        fig.colorbar(im, ax=ax, pad=0.01)
+
+
 __all__ = [
     "MelSpectrogramResult",
     "apply_hann_window",
@@ -222,5 +268,7 @@ __all__ = [
     "load_audio",
     "mel_to_hz",
     "mel_spectrogram_from_power",
+    "show_mel",
+    "synthesize_signal",
     "split_track_into_frames",
 ]
