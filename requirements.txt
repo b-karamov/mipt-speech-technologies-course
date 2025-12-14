@@ -1,3 +1,6 @@
 numpy
 soundfile
 matplotlib
+torch
+torchaudio
+tqdm
